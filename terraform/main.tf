@@ -24,14 +24,24 @@ module "eks" {
   subnet_ids               = module.vpc.private_subnets
   control_plane_subnet_ids = module.vpc.private_subnets
 
-  eks_managed_node_groups = {
+  # Fargate-only setup avoids EC2 Auto Scaling/Fleet limits.
+  fargate_profiles = {
     default = {
-      desired_size = 1
-      min_size     = 1
-      max_size     = 2
+      name = "default"
+      selectors = [
+        {
+          namespace = "default"
+        }
+      ]
+    }
 
-      instance_types = ["t3.small"]
-      capacity_type  = "ON_DEMAND"
+    kube_system = {
+      name = "kube-system"
+      selectors = [
+        {
+          namespace = "kube-system"
+        }
+      ]
     }
   }
 }
