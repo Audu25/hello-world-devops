@@ -183,6 +183,45 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name ${{ needs.terraform.outputs.cluster_name }} --region ${{ env.AWS_REGION }}
 
+      - name: Ensure GitHub role has EKS access
+        run: |
+          set +e
+          ENTRY_OUTPUT=$(aws eks create-access-entry \
+            --cluster-name ${{ needs.terraform.outputs.cluster_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --principal-arn ${{ secrets.AWS_ROLE_ARN }} \
+            --type STANDARD 2>&1)
+          ENTRY_RC=$?
+          set -e
+
+          if [ $ENTRY_RC -ne 0 ]; then
+            echo "$ENTRY_OUTPUT"
+            if echo "$ENTRY_OUTPUT" | grep -q "already exists"; then
+              echo "Access entry already exists; continuing."
+            else
+              exit $ENTRY_RC
+            fi
+          fi
+
+          set +e
+          POLICY_OUTPUT=$(aws eks associate-access-policy \
+            --cluster-name ${{ needs.terraform.outputs.cluster_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --principal-arn ${{ secrets.AWS_ROLE_ARN }} \
+            --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+            --access-scope type=cluster 2>&1)
+          POLICY_RC=$?
+          set -e
+
+          if [ $POLICY_RC -ne 0 ]; then
+            echo "$POLICY_OUTPUT"
+            if echo "$POLICY_OUTPUT" | grep -q "ResourceInUseException"; then
+              echo "Access policy already associated; continuing."
+            else
+              exit $POLICY_RC
+            fi
+          fi
+
       - name: Helm upgrade/install
         run: |
           helm upgrade --install hello-world ./helm/hello-world \
