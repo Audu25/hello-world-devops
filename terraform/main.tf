@@ -19,6 +19,11 @@ module "eks" {
 
   cluster_name    = var.cluster_name
   cluster_version = "1.30"
+  create_kms_key  = false
+
+  # Avoid log group "already exists" collisions from previous failed runs.
+  create_cloudwatch_log_group = false
+  cluster_enabled_log_types   = []
 
   vpc_id                   = module.vpc.vpc_id
   subnet_ids               = module.vpc.private_subnets

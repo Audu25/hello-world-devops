@@ -17,6 +17,7 @@ permissions:
 env:
   AWS_REGION: ${{ secrets.AWS_REGION != '' && secrets.AWS_REGION || 'eu-west-2' }}
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY != '' && secrets.ECR_REPOSITORY || 'hello-world-app' }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME != '' && secrets.EKS_CLUSTER_NAME || 'hello-world-eks' }}
 
 jobs:
   test:
@@ -86,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-push]
     outputs:
-      cluster_name: ${{ steps.tf_output.outputs.cluster_name }}
+      cluster_name: ${{ steps.cluster_name_output.outputs.cluster_name }}
     defaults:
       run:
         working-directory: terraform
@@ -103,22 +104,45 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Check if EKS cluster already exists
+        id: cluster_check
+        run: |
+          if aws eks describe-cluster --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Terraform Init
+        if: steps.cluster_check.outputs.exists == 'false'
         run: terraform init
 
       - name: Terraform Validate
+        if: steps.cluster_check.outputs.exists == 'false'
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -input=false
+        if: steps.cluster_check.outputs.exists == 'false'
+        run: terraform plan -input=false -var "cluster_name=${{ env.EKS_CLUSTER_NAME }}" -var "aws_region=${{ env.AWS_REGION }}"
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+        if: steps.cluster_check.outputs.exists == 'false'
+        run: terraform apply -auto-approve -input=false -var "cluster_name=${{ env.EKS_CLUSTER_NAME }}" -var "aws_region=${{ env.AWS_REGION }}"
 
       - name: Export cluster output
         id: tf_output
+        if: steps.cluster_check.outputs.exists == 'false'
         run: |
           echo "cluster_name=$(terraform output -raw cluster_name)" >> $GITHUB_OUTPUT
+
+      - name: Set cluster name output
+        id: cluster_name_output
+        run: |
+          if [ "${{ steps.cluster_check.outputs.exists }}" = "true" ]; then
+            echo "cluster_name=${{ env.EKS_CLUSTER_NAME }}" >> $GITHUB_OUTPUT
+          else
+            echo "cluster_name=${{ steps.tf_output.outputs.cluster_name }}" >> $GITHUB_OUTPUT
+          fi
 
   helm-deploy:
     runs-on: ubuntu-latest
