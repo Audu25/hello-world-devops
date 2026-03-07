@@ -20,6 +20,8 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = "1.30"
   create_kms_key  = false
+  cluster_endpoint_public_access = true
+  cluster_endpoint_private_access = true
 
   # Avoid log group "already exists" collisions from previous failed runs.
   create_cloudwatch_log_group = false
