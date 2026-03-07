@@ -159,10 +159,23 @@ jobs:
 
       - name: Ensure EKS API endpoint is publicly reachable
         run: |
-          aws eks update-cluster-config \
+          set +e
+          OUTPUT=$(aws eks update-cluster-config \
             --name ${{ needs.terraform.outputs.cluster_name }} \
             --region ${{ env.AWS_REGION }} \
-            --resources-vpc-config endpointPublicAccess=true,endpointPrivateAccess=true,publicAccessCidrs=0.0.0.0/0
+            --resources-vpc-config endpointPublicAccess=true,endpointPrivateAccess=true,publicAccessCidrs=0.0.0.0/0 2>&1)
+          RC=$?
+          set -e
+
+          if [ $RC -ne 0 ]; then
+            echo "$OUTPUT"
+            if echo "$OUTPUT" | grep -q "already at the desired configuration"; then
+              echo "EKS endpoint config already correct; continuing."
+            else
+              exit $RC
+            fi
+          fi
+
           aws eks wait cluster-active \
             --name ${{ needs.terraform.outputs.cluster_name }} \
             --region ${{ env.AWS_REGION }}
