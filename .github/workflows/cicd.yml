@@ -157,18 +157,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name ${{ needs.terraform.outputs.cluster_name }} --region ${{ env.AWS_REGION }}
-
       - name: Ensure EKS API endpoint is publicly reachable
         run: |
           aws eks update-cluster-config \
             --name ${{ needs.terraform.outputs.cluster_name }} \
             --region ${{ env.AWS_REGION }} \
-            --resources-vpc-config endpointPublicAccess=true,endpointPrivateAccess=true
+            --resources-vpc-config endpointPublicAccess=true,endpointPrivateAccess=true,publicAccessCidrs=0.0.0.0/0
           aws eks wait cluster-active \
             --name ${{ needs.terraform.outputs.cluster_name }} \
             --region ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ needs.terraform.outputs.cluster_name }} --region ${{ env.AWS_REGION }}
 
       - name: Helm upgrade/install
         run: |
