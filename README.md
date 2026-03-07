@@ -33,7 +33,8 @@ Set these repository secrets before running full deployment:
 - `AWS_ROLE_ARN`
 - `AWS_REGION` (example: `eu-west-2`)
 - `ECR_REPOSITORY` (example: `hello-world-app`)
-- `EKS_CLUSTER_NAME`
+
+`EKS_CLUSTER_NAME` is optional in the current workflow because Terraform now creates EKS and passes the cluster name to Helm deploy automatically.
 
 ## Failure simulation (Question 1)
 
