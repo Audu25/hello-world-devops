@@ -1,24 +1,50 @@
 # Hello World DevOps on EKS
 
-This project simulates a microservice CI/CD pipeline:
+End-to-end CI/CD pipeline deploying a Flask microservice to AWS EKS using 
+Terraform, GitHub Actions, and Helm — with failure simulation built in.
+
+## Architecture
+```
+Developer → GitHub → GitHub Actions → Amazon ECR
+                          ↓
+                      Terraform (VPC + EKS)
+                          ↓
+                       Helm deploy
+                          ↓
+              ┌─────── EKS Cluster ────────────┐
+              │  Flask app → Prometheus → Grafana │
+              └────────────────────────────────┘
+```
+
+## Pipeline flow
 
 1. Developer pushes code to GitHub
-2. GitHub Actions runs tests
-3. Docker image is built
-4. Image pushed to Amazon ECR
-5. Terraform provisions EKS-related infra
-6. Helm deploys app to EKS
+2. GitHub Actions triggers — runs tests
+3. Docker image is built and pushed to Amazon ECR
+4. Terraform provisions the VPC and EKS cluster
+5. Helm pulls the image from ECR and deploys to EKS
+6. Prometheus scrapes metrics from the Flask app
+7. Grafana visualises dashboards and alerts
 
-## Structure
+## Project structure
+```
+.
+├── app/                        # Flask hello-world microservice
+├── Dockerfile                  # Container image build
+├── .github/workflows/cicd.yml  # GitHub Actions CI/CD workflow
+├── terraform/                  # AWS infrastructure (VPC + EKS module)
+└── helm/hello-world/           # Helm chart for Kubernetes deployment
+```
 
-- `app/`: Flask hello-world microservice
-- `Dockerfile`: container image build
-- `.github/workflows/cicd.yml`: CI/CD workflow
-- `terraform/`: AWS infra (VPC + EKS module)
-- `helm/hello-world/`: Helm chart for deployment
+## Prerequisites
+
+- AWS CLI configured with appropriate permissions
+- Terraform >= 1.0
+- kubectl
+- Helm >= 3.0
+- Docker
 
 ## Local quick run
-
 ```bash
 docker build -t hello-world:local .
 docker run -p 8080:8080 hello-world:local
@@ -26,34 +52,52 @@ docker run -p 8080:8080 hello-world:local
 
 Then open `http://localhost:8080`.
 
-## Manual Helm deploy (from local terminal)
+## GitHub Actions secrets required
 
-If you deploy manually, pass your ECR image explicitly:
+Set these in your repository secrets before running the full pipeline:
 
+| Secret | Example value |
+|--------|--------------|
+| `AWS_ROLE_ARN` | `arn:aws:iam::123456789:role/github-actions` |
+| `AWS_REGION` | `eu-west-2` |
+| `ECR_REPOSITORY` | `hello-world-app` |
+
+`EKS_CLUSTER_NAME` is optional — Terraform creates the cluster and passes 
+the name to Helm automatically.
+
+## Manual Helm deploy
 ```bash
-TAG=$(aws ecr describe-images --repository-name hello-world-app --region eu-west-2 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]" --output text)
-helm upgrade --install hello-world ./helm/hello-world -n default --create-namespace \
+TAG=$(aws ecr describe-images \
+  --repository-name hello-world-app \
+  --region eu-west-2 \
+  --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]" \
+  --output text)
+
+helm upgrade --install hello-world ./helm/hello-world \
+  -n default --create-namespace \
   --set image.repository=<AWS_ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/hello-world-app \
   --set image.tag=$TAG \
   --set image.pullPolicy=Always \
   --set service.type=LoadBalancer
 ```
 
-## GitHub Actions secrets required
+## Failure simulation
 
-Set these repository secrets before running full deployment:
+The workflow supports a `workflow_dispatch` input `simulate_failure`:
 
-- `AWS_ROLE_ARN`
-- `AWS_REGION` (example: `eu-west-2`)
-- `ECR_REPOSITORY` (example: `hello-world-app`)
+- `true` — fails intentionally at the CI test stage
+- `false` — runs the full pipeline
 
-`EKS_CLUSTER_NAME` is optional in the current workflow because Terraform now creates EKS and passes the cluster name to Helm deploy automatically.
+This lets you demo CI/CD failure handling and recovery in a controlled way.
 
-## Failure simulation (Question 1)
+## Tech stack
 
-Workflow supports `workflow_dispatch` input `simulate_failure`:
-
-- `true`: fails intentionally in CI test stage.
-- `false`: runs full pipeline.
-
-This lets you demo CI/CD failure handling.
+| Tool | Purpose |
+|------|---------|
+| GitHub Actions | CI/CD automation |
+| Docker | Containerisation |
+| Amazon ECR | Docker image registry |
+| Terraform | Infrastructure as code (VPC, EKS) |
+| Helm | Kubernetes package management |
+| Prometheus | Metrics collection |
+| Grafana | Observability dashboards |
