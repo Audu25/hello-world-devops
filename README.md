@@ -4,15 +4,18 @@ End-to-end CI/CD pipeline deploying a Flask microservice to AWS EKS using
 Terraform, GitHub Actions, and Helm — with failure simulation built in.
 
 ## Architecture
-```Developer → GitHub → GitHub Actions → Amazon ECR
-                          ↓
-                      Terraform (VPC + EKS)
-                          ↓
-                       Helm deploy
-                          ↓
-              ┌─────── EKS Cluster ────────────┐
-              │  Flask app → Prometheus → Grafana │
-              └────────────────────────────────┘
+`````mermaid
+flowchart LR
+    A[Developer] -->|push| B[GitHub]
+    B --> C[GitHub Actions\nCI - build & test]
+    C --> D[Amazon ECR\nDocker image store]
+    C -->|on push| E[Terraform\nVPC + EKS]
+    E --> F[Helm\nDeploy to EKS]
+    D -->|image pulled| F
+    F --> G[Flask App\nPod / LoadBalancer]
+    G --> H[Prometheus\nScrapes metrics]
+    H --> I[Grafana\nDashboards]
+```
 ```
 
 ## Pipeline flow
