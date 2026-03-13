@@ -33,7 +33,7 @@ If you deploy manually, pass your ECR image explicitly:
 ```bash
 TAG=$(aws ecr describe-images --repository-name hello-world-app --region eu-west-2 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]" --output text)
 helm upgrade --install hello-world ./helm/hello-world -n default --create-namespace \
-  --set image.repository=619943692858.dkr.ecr.eu-west-2.amazonaws.com/hello-world-app \
+  --set image.repository=<AWS_ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/hello-world-app \
   --set image.tag=$TAG \
   --set image.pullPolicy=Always \
   --set service.type=LoadBalancer
